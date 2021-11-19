@@ -1,0 +1,52 @@
+body {
+  margin: 0;
+  padding: 0;
+
+  --cells: 8;
+}
+
+#board {
+  margin: 16px;
+  padding: 0;
+}
+
+table {
+  width: 512px;
+  height: 512px;
+  border-collapse: collapse;
+  background-color: mediumaquamarine;
+}
+
+td {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  width: calc(100% / var(--cells));
+  height: calc(100% / var(--cells));
+  border: 1px solid black;
+  --stone-size: 75%;
+}
+td:before {
+  position: absolute;
+  top: calc((100% - var(--stone-size)) / 2);
+  left: calc((100% - var(--stone-size)) / 2);
+  width: var(--stone-size);
+  height: var(--stone-size);
+  display: block;
+  border-radius: 50%;
+  overflow: hidden;
+  content: "";
+
+  transition: transform 0.2s ease;
+}
+td[data-color="black"]:before {
+  background-color: black;
+  cursor: pointer;
+}
+td[data-color="white"]::before {
+  background-color: white;
+  cursor: pointer;
+}
+td[data-pre="true"]:before {
+  opacity: 50%;
+}
