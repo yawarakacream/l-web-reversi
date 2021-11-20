@@ -37,6 +37,16 @@ const main = () => {
     WHITE: "white",
   };
 
+  // AI を有効にするか
+  const enableAi = true;
+
+  // AI が思考に使う最小の時間 [ms]
+  // これを入れないと一瞬で手を指してしまったりする
+  const aiInterval = 1000;
+
+  // AI の手番の色
+  const aiColor = CellColor.WHITE;
+
   // ================================================================
   // 変数
   //
@@ -45,10 +55,15 @@ const main = () => {
 
   // セルの状態
   // 2 次元配列で管理すると簡単．size × size で中身が CellColor.EMPTY の 2 次元配列を作ろう
-  const cells = undefined; /* ******** 実装しよう ******** */
+  const cells = new Array(size);
+  for (let i = 0; i < size; i++) {
+    cells[i] = new Array(size);
+    cells[i].fill(CellColor.EMPTY);
+  }
   // BONUS: 1 行でも書ける
 
-  return; // うまくいったら外そう
+  // ホバーされているセル
+  let hoveredCell = null;
 
   // 現在の手番
   let player = CellColor.BLACK;
@@ -76,7 +91,23 @@ const main = () => {
     board.appendChild(table);
 
     // <table> の中身を作る
-    /* ******** 実装しよう ******** */
+    // 一行ずつ詰めていく
+    for (let x = 0; x < size; x++) {
+      // 行は <tr> で表す
+      const row = document.createElement("tr");
+      table.appendChild(row);
+
+      for (let y = 0; y < size; y++) {
+        // セルは <td> で表す
+        const cell = document.createElement("td");
+
+        // .id で id を設定できる
+        // 適当に x, y から一意に定まる名前をつけておく
+        cell.id = `cell(${x},${y})`;
+
+        row.appendChild(cell);
+      }
+    }
 
     // <table> タグの使い方：
     // <tr> が行、<td> がセルを表す
@@ -103,16 +134,26 @@ const main = () => {
   };
   prepareTable();
 
-  return; // うまくいったら外そう
-
   // 盤を用意したらセルに石を置きたくなる
   // セルは cells という変数で表していたのであった
   // cells 変数を HTML に反映させる処理を書く
-  // プログラミングではふつう左上を原点にとった座標系を考える (さらに、下方向を x、右方向を y とすることが多い)
   const updateDisplay = () => {
     // 各セルに `cell(${x},${y})` という名前をつけていたので、これを getElementById すれば要素が取得できる
     // 取得した要素.dataset["color"] = CellColor.WHITE; のようにすると石が描画されるように予め用意してある
-    /* ******** 実装しよう ******** */
+    for (let x = 0; x < size; x++) {
+      for (let y = 0; y < size; y++) {
+        const cell = document.getElementById(`cell(${x},${y})`);
+
+        // ホバーの対応
+        if (hoveredCell !== null && hoveredCell.x === x && hoveredCell.y === y) {
+          cell.dataset["pre"] = true;
+          cell.dataset["color"] = player;
+        } else {
+          cell.dataset["pre"] = false;
+          cell.dataset["color"] = cells[x][y];
+        }
+      }
+    }
   };
 
   // 初期配置をして HTML に反映させてみよう
@@ -121,8 +162,6 @@ const main = () => {
   cells[3][4] = CellColor.BLACK;
   cells[4][3] = CellColor.BLACK;
   updateDisplay();
-
-  return; // うまくいったら外そう
 
   // ================================================================
   // ロジック：ゲーム本体編
@@ -140,13 +179,39 @@ const main = () => {
         const cell = document.getElementById(`cell(${x},${y})`);
 
         // ユーザーがクリックしたとき："click" イベント
-        /* ******** 実装しよう ******** */
+        cell.addEventListener("click", () => {
+          // 「AI が有効」かつ「AI の手番」ならば何もしない
+          if (enableAi && player === aiColor) {
+            return;
+          }
+
+          // 石が置けないセルなら何もしない
+          if (!canPlace(x, y, player)) {
+            return;
+          }
+
+          // 手番を進める
+          proceedTurn(x, y);
+        });
+
+        // ユーザーがマウスを上にやったとき："mouseenter" イベント
+        cell.addEventListener("mouseenter", () => {
+          // 「AI が有効」かつ「AI の手番」ならば何もしない
+          if (enableAi && player === aiColor) {
+            return;
+          }
+
+          if (canPlace(x, y, player)) {
+            hoveredCell = { x, y };
+          } else {
+            hoveredCell = null;
+          }
+          updateDisplay();
+        });
       }
     }
   };
   addEventListeners();
-
-  return; // うまくいったら外そう
 
   // ある石を置いたときにひっくり返せる石を求める関数を作ろう
   // x, y に color が置かれたときひっくり返せる石の座標の配列を返す
@@ -154,8 +219,48 @@ const main = () => {
   // ex.) findReversibleCells(0, 0, ColorStatus.BLACK) => [[1, 1], [1, 2]]
   //      (0, 0) に黒い石が置かれると (1, 1), (1, 2) にある白い石をひっくり返せる
   const findReversibleCells = (x, y, color) => {
-    /* ******** 実装しよう ******** */
+    // 既に石が置かれていたら空配列
+    if (cells[x][y] !== CellColor.EMPTY) {
+      return [];
+    }
+
+    // ひっくり返せる石がある方向は上下左右・上上左... で 8 種考えられる
+    // 1 方向について調べる関数を用意して、あとでまとめるのが簡単だろう
+    // JavaScript は関数の中に関数を定義できる
+    const findByDirection = (dx, dy) => {
+      let ret = [];
+      let reversible = false;
+      let x1 = x + dx;
+      let y1 = y + dy;
+      while (0 <= x1 && x1 < size && 0 <= y1 && y1 < size) {
+        if (cells[x1][y1] === CellColor.EMPTY) {
+          break;
+        }
+        if (cells[x1][y1] === color) {
+          reversible = true;
+          break;
+        }
+        ret.push([x1, y1]);
+        x1 += dx;
+        y1 += dy;
+      }
+      return reversible ? ret : [];
+    };
+
+    const ret = [];
+    for (const dx of [-1, 0, 1]) {
+      for (const dy of [-1, 0, 1]) {
+        if (dx === 0 && dy === 0) {
+          continue;
+        }
+        ret.push(...findByDirection(dx, dy));
+      }
+    }
+    return ret;
   };
+
+  // 石が置けるかどうかを判定する
+  const canPlace = (x, y, color) => findReversibleCells(x, y, color).length !== 0;
 
   // 石を置いて手番を進める関数を作ろう
   // (x, y) に現在の手番の石を置く
@@ -163,7 +268,77 @@ const main = () => {
   // ゲームの終了判定：すべてのセルに石が置かれている / すべての石の色が同じ ならば終了
   // 手番を交代し、パスの確認など
   const proceedTurn = (x, y) => {
-    /* ******** 実装しよう ******** */
+    // 石をひっくり返す・置く
+    const reversibles = findReversibleCells(x, y, player);
+    reversibles.forEach(([x1, y1]) => {
+      cells[x1][y1] = player;
+    });
+    cells[x][y] = player;
+
+    // ホバーを解除
+    hoveredCell = null;
+
+    // 描画
+    updateDisplay();
+
+    console.log(`proceedTurn: ${player} put (${x}, ${y})`);
+
+    // 手番を交代
+    player = player === CellColor.BLACK ? CellColor.WHITE : CellColor.BLACK;
+
+    const cellsData = [...new Array(size).keys()]
+      .flatMap((x) => [...new Array(size).keys()].map((y) => [x, y]))
+      .map(([x, y]) => ({
+        color: cells[x][y],
+        length: findReversibleCells(x, y, player).length,
+      }));
+
+    const blacks = cellsData.filter(({ color }) => color === CellColor.BLACK).length;
+    const whites = cellsData.filter(({ color }) => color === CellColor.WHITE).length;
+
+    // すべてのセルの色が同じ、または EMPTY でなければ終了
+    if (blacks === 0 || whites === 0 || blacks + whites === size * size) {
+      console.log(
+        `proceedTurn: GAME SET! ${
+          blacks === whites
+            ? "draw"
+            : `${blacks < whites ? CellColor.WHITE : CellColor.BLACK} won (${blacks} vs ${whites})`
+        }`
+      );
+      return;
+    }
+
+    // 交代した手番の人が石を置けるセルがなければパス
+    if (cellsData.every(({ length }) => length === 0)) {
+      console.log(`proceedTurn: ${player} passed`);
+      player = player === CellColor.BLACK ? CellColor.WHITE : CellColor.BLACK;
+    }
+
+    // 「AI が有効」かつ「AI の手番になった」ならば AI の処理を行う
+    if (enableAi && player === aiColor) {
+      // setTimeout を使うと処理を遅らせることができる
+      setTimeout(() => proceedTurn(...executeAi()), aiInterval);
+    }
+  };
+
+  // AI の処理を書こう
+  // どの (x, y) に石を置くかを返す
+  const executeAi = () => {
+    // 座標とひっくり返せるセルの個数をまとめた配列の配列
+    let reversibles = [...new Array(size).keys()]
+      .flatMap((x) => [...new Array(size).keys()].map((y) => [x, y]))
+      .map(([x, y]) => [x, y, findReversibleCells(x, y, player).length])
+      .filter((c) => c[2] > 0);
+
+    if (reversibles.length === 0) {
+      return [];
+    }
+
+    // 一番ひっくり返せるものだけでフィルタしたりできる
+    // const max = Math.max(...reversibles.map((e) => e[2]));
+    // reversibles = reversibles.filter((c) => c[2] === max);
+
+    return reversibles[Math.floor(Math.random() * reversibles.length)];
   };
 };
 
