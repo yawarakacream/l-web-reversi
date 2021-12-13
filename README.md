@@ -1,6 +1,12 @@
 # l-web-reversi
 
-OSK ι-web  
-#1 初級編
+l-web-reversi 想定解
 
-リバーシ（オセロ）をつくる！
+想定解とあるが、以下は指示通りに進めた結果に加えて
+
+- 愚直な CPU
+- 石を置くときの描写
+
+を追加してある
+
+[GitHub Pages](https://yawarakacream.github.io/l-web-reversi/)
